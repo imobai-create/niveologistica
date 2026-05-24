@@ -72,3 +72,25 @@ export async function agenteResponder(entregaId, mensagens) {
     body: JSON.stringify({ entrega_id: entregaId, mensagens }),
   });
 }
+
+// Entregas abertas para o motorista (não entregue / não cancelada).
+export async function listarAbertas() {
+  const list = await listarPainel();
+  return list.filter((it) => !["entregue", "cancelada", "devolvida"].includes(it.status));
+}
+
+// Registra POD da entrega. foto_url e assinatura_url aceitam data URLs no MVP;
+// em produção, suba para Supabase Storage primeiro e mande a URL pública.
+export async function registrarPod(entregaId, pod) {
+  return req(`/entregas/${entregaId}/pod`, {
+    method: "POST",
+    body: JSON.stringify(pod),
+  });
+}
+
+export async function adicionarEvento(entregaId, evento) {
+  return req(`/entregas/${entregaId}/eventos`, {
+    method: "POST",
+    body: JSON.stringify(evento),
+  });
+}

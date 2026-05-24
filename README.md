@@ -46,6 +46,17 @@ npm run dev
 Abra `http://localhost:5173`. Se o backend não responder, o painel cai para
 um seed de demonstração — útil para validar UI sem banco.
 
+### 4. App do motorista (PWA)
+
+Rota `/motorista` no mesmo frontend — abra `http://localhost:5173/motorista`
+no celular (Android Chrome recomendado; usa câmera + GPS + assinatura no canvas
+e posta em `POST /entregas/{id}/pod`). Adicionável à tela inicial via "Instalar app".
+
+> **MVP:** foto e assinatura vão como data URL no campo `foto_url`/`assinatura_url`.
+> Em produção, troque por upload no Supabase Storage e mande só a URL pública.
+> Faltam ícones `public/icon-192.png` e `public/icon-512.png` — substitua os
+> placeholders para que o PWA seja instalável de verdade no Android.
+
 ## Onde está cada coisa do plano
 
 | Semana | Entregável | Arquivos |
