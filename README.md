@@ -80,6 +80,39 @@ Cenários: `normal`, `excursao` (rampa acima do `temp_max`), `porta-aberta`
 (picos curtos) e `choque` (também emite evento `choque`). `--seed` deixa a
 curva reprodutível.
 
+## Publicar online (deploy)
+
+Banco já está no Supabase. Frontend vai pra **Vercel** (free) e backend pra
+**Render** (free). Configurações já estão no repo — você só conecta o GitHub
+nos dois e clica deploy.
+
+### Backend → Render
+
+1. Em https://render.com → **New +** → **Blueprint**.
+2. Conecte o repositório `niveologistica`. O Render lê o `render.yaml` da
+   raiz e propõe o serviço `rastro-api`.
+3. Preencha as env vars marcadas como `sync: false`:
+   - `DATABASE_URL` — connection string do Supabase (com `?sslmode=require`).
+   - `ANTHROPIC_API_KEY` — opcional, só se quiser o agente respondendo.
+   - `CORS_ORIGINS` — depois que o frontend subir, cole aqui a URL da Vercel
+     (ex.: `https://rastro.vercel.app`).
+4. Clique **Apply**. URL final tipo `https://rastro-api.onrender.com`.
+
+> Plano free dorme após 15 min ocioso e cold-start leva ~30 s. Para piloto
+> com cliente, suba para **Starter** ($7/mês, sempre ligado).
+
+### Frontend → Vercel
+
+1. Em https://vercel.com → **Add New** → **Project** → importe o repositório.
+2. Em **Root Directory**, escolha `frontend`. A Vercel detecta o Vite e o
+   `vercel.json` cuida do resto (SPA rewrites + headers do PWA).
+3. Em **Environment Variables**, defina:
+   - `VITE_API_URL` = a URL do Render acima.
+4. **Deploy**. URL tipo `https://rastro.vercel.app`. Volte no Render e
+   adicione essa URL em `CORS_ORIGINS`.
+
+Pronto: painel em `/`, PWA do motorista em `/motorista` — instalável no celular.
+
 ## Onde está cada coisa do plano
 
 | Semana | Entregável | Arquivos |
