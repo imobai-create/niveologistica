@@ -9,6 +9,7 @@ Núcleo de custódia auditável para last-mile de carga sensível (farma 2–8 �
 ├── frontend/     Vite + React + Recharts (painel de custódia)
 ├── db/           Migrações SQL (Supabase / Postgres)
 ├── docs/         Roteiro de execução, prompt do agente, integração do logger
+├── scripts/      Ferramentas de operação (simulador de logger BLE)
 └── comercial/    Proposta, contrato, viabilidade, deck
 ```
 
@@ -56,6 +57,28 @@ e posta em `POST /entregas/{id}/pod`). Adicionável à tela inicial via "Instala
 > Em produção, troque por upload no Supabase Storage e mande só a URL pública.
 > Faltam ícones `public/icon-192.png` e `public/icon-512.png` — substitua os
 > placeholders para que o PWA seja instalável de verdade no Android.
+
+### 5. Simulador de logger BLE
+
+Enquanto o hardware não chega, `scripts/simulador_logger.py` injeta leituras
+no backend para validar custódia, alertas e dossiê. Sem dependências —
+roda direto com Python 3.10+.
+
+```bash
+# lista entregas em aberto
+python scripts/simulador_logger.py --listar --api http://localhost:8000
+
+# backfill de 60 min de leituras dentro da faixa (rápido, ótimo para demo)
+python scripts/simulador_logger.py --entrega <uuid> --modo backfill --minutos 60
+
+# excursão térmica + GPS interpolado, em tempo real
+python scripts/simulador_logger.py --entrega <uuid> --modo live \
+    --intervalo 30 --cenario excursao --gps
+```
+
+Cenários: `normal`, `excursao` (rampa acima do `temp_max`), `porta-aberta`
+(picos curtos) e `choque` (também emite evento `choque`). `--seed` deixa a
+curva reprodutível.
 
 ## Onde está cada coisa do plano
 
