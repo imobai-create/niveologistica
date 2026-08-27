@@ -5,7 +5,13 @@ POD, dossiê e o agente de WhatsApp (chamada real à API da Anthropic).
 
 Reaproveita a função SQL avaliar_excursao() — a lógica de excursão vive no banco.
 
-Env:  DATABASE_URL, ANTHROPIC_API_KEY, ANTHROPIC_MODEL (opcional)
+Auth: Bearer JWT (Supabase, HS256). Toda rota exige o claim `cliente_id`.
+Um SERVICE_TOKEN opcional (env) libera acesso irrestrito para o simulador
+de logger e jobs internos.
+
+Env:  DATABASE_URL, SUPABASE_JWT_SECRET, CORS_ORIGINS
+      ANTHROPIC_API_KEY, ANTHROPIC_MODEL (opcional)
+      SERVICE_TOKEN (opcional; se setado, bypassa filtro por cliente_id)
 Rodar: uvicorn main:app --reload
 """
 import os, json, re
@@ -13,16 +19,29 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
-import asyncpg, httpx
-from fastapi import FastAPI, HTTPException
+import asyncpg, httpx, jwt
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-DATABASE_URL      = os.environ["DATABASE_URL"]
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL   = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-CO2_KG_POR_KM     = 0.25  # emissão evitada vs. van diesel
-CORS_ORIGINS      = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+DATABASE_URL         = os.environ["DATABASE_URL"]
+SUPABASE_JWT_SECRET  = os.environ["SUPABASE_JWT_SECRET"]
+ANTHROPIC_API_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL      = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+SERVICE_TOKEN        = os.environ.get("SERVICE_TOKEN", "")
+CO2_KG_POR_KM        = 0.25  # emissão evitada vs. van diesel
+
+_cors_raw = os.environ.get("CORS_ORIGINS", "").strip()
+if not _cors_raw or _cors_raw == "*":
+    raise RuntimeError(
+        "CORS_ORIGINS obrigatório (lista de domínios separada por vírgula). "
+        "'*' é rejeitado — combinar com JWT Bearer não é seguro."
+    )
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 
 pool: Optional[asyncpg.Pool] = None
 
@@ -35,10 +54,74 @@ async def lifespan(_app: FastAPI):
     await pool.close()
 
 
-app = FastAPI(title="Chamacarga API", version="0.1", lifespan=lifespan)
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(title="Chamacarga API", version="0.2", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
-    CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+# ------------------------------ auth ----------------------------------
+bearer = HTTPBearer(auto_error=True)
+
+
+def current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
+    """Valida JWT do Supabase (HS256) e extrai cliente_id.
+    Aceita SERVICE_TOKEN opcional (env) como bypass para uso interno."""
+    token = cred.credentials
+    if SERVICE_TOKEN and token == SERVICE_TOKEN:
+        return {"sub": "service", "cliente_id": None, "role": "service"}
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+            options={"require": ["sub", "exp"]},
+        )
+    except jwt.PyJWTError as e:
+        raise HTTPException(401, f"token inválido: {e}")
+    # cliente_id pode vir como claim top-level ou dentro de app_metadata
+    cliente_id = payload.get("cliente_id") or (payload.get("app_metadata") or {}).get("cliente_id")
+    if not cliente_id:
+        raise HTTPException(403, "token sem claim cliente_id")
+    return {
+        "sub": payload["sub"],
+        "cliente_id": str(cliente_id),
+        "role": payload.get("role", "authenticated"),
+    }
+
+
+async def ensure_owns_entrega(conn, user: dict, entrega_id: str) -> None:
+    """Confirma que a entrega pertence ao cliente do usuário. Service bypassa."""
+    if user["role"] == "service":
+        return
+    row = await conn.fetchrow(
+        """select 1 from entregas e
+           join pedidos p on p.id = e.pedido_id
+           where e.id = $1 and p.cliente_id = $2""",
+        entrega_id, user["cliente_id"],
+    )
+    if not row:
+        raise HTTPException(404, "entrega não encontrada")
+
+
+async def ensure_owns_pedido(conn, user: dict, pedido_id: str) -> None:
+    if user["role"] == "service":
+        return
+    row = await conn.fetchrow(
+        "select 1 from pedidos where id = $1 and cliente_id = $2",
+        pedido_id, user["cliente_id"],
+    )
+    if not row:
+        raise HTTPException(404, "pedido não encontrado")
 
 
 # ----------------------------- helpers --------------------------------
@@ -86,7 +169,6 @@ class DestinatarioIn(BaseModel):
 
 
 class PedidoIn(BaseModel):
-    cliente_id: str
     destinatario: DestinatarioIn
     ref_externa: Optional[str] = None
     valor_declarado: Optional[float] = None
@@ -146,33 +228,37 @@ class AgenteIn(BaseModel):
 # ----------------------------- rotas ----------------------------------
 @app.get("/health")
 async def health():
+    """Público — precisa responder pra healthcheck do Render/Vercel."""
     async with pool.acquire() as c:
         await c.fetchval("select 1")
     return {"ok": True}
 
 
 @app.post("/pedidos", status_code=201)
-async def criar_pedido(p: PedidoIn):
+async def criar_pedido(p: PedidoIn, user: dict = Depends(current_user)):
+    if user["role"] == "service":
+        raise HTTPException(403, "criação de pedido exige JWT de cliente autenticado")
     async with pool.acquire() as c, c.transaction():
         dest_id = await c.fetchval(
             """insert into destinatarios (cliente_id, nome, telefone, documento, endereco_raw, cep)
                values ($1,$2,$3,$4,$5,$6) returning id""",
-            p.cliente_id, p.destinatario.nome, p.destinatario.telefone,
+            user["cliente_id"], p.destinatario.nome, p.destinatario.telefone,
             p.destinatario.documento, p.destinatario.endereco_raw, p.destinatario.cep,
         )
         ped_id = await c.fetchval(
             """insert into pedidos (cliente_id, destinatario_id, ref_externa, valor_declarado,
                                     termolabil, faixa, temp_min, temp_max, janela_inicio, janela_fim)
                values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id""",
-            p.cliente_id, dest_id, p.ref_externa, p.valor_declarado, p.termolabil,
+            user["cliente_id"], dest_id, p.ref_externa, p.valor_declarado, p.termolabil,
             p.faixa, p.temp_min, p.temp_max, p.janela_inicio, p.janela_fim,
         )
     return {"pedido_id": str(ped_id), "destinatario_id": str(dest_id)}
 
 
 @app.post("/pedidos/{pedido_id}/entregas", status_code=201)
-async def criar_entrega(pedido_id: str, e: EntregaIn):
+async def criar_entrega(pedido_id: str, e: EntregaIn, user: dict = Depends(current_user)):
     async with pool.acquire() as c, c.transaction():
+        await ensure_owns_pedido(c, user, pedido_id)
         ent_id = await c.fetchval(
             """insert into entregas (pedido_id, motorista_id, veiculo_id, logger_id, distancia_km)
                values ($1,$2,$3,$4,$5) returning id""",
@@ -185,18 +271,30 @@ async def criar_entrega(pedido_id: str, e: EntregaIn):
 
 
 @app.get("/entregas")
-async def listar_entregas():
+async def listar_entregas(user: dict = Depends(current_user)):
     async with pool.acquire() as c:
-        rows = await c.fetch("select * from vw_entrega_resumo order by coletada_em desc nulls last")
+        if user["role"] == "service":
+            rows = await c.fetch(
+                "select * from vw_entrega_resumo order by coletada_em desc nulls last")
+        else:
+            rows = await c.fetch(
+                """select r.* from vw_entrega_resumo r
+                   join entregas e on e.id = r.entrega_id
+                   join pedidos p on p.id = e.pedido_id
+                   where p.cliente_id = $1
+                   order by r.coletada_em desc nulls last""",
+                user["cliente_id"])
     return [jsonable(r) for r in rows]
 
 
 @app.get("/painel/entregas")
-async def listar_painel():
+async def listar_painel(user: dict = Depends(current_user)):
     """Lista enriquecida para o front: campos do painel + flag de excursão."""
+    where_cli = "" if user["role"] == "service" else "where p.cliente_id = $1"
+    params = [] if user["role"] == "service" else [user["cliente_id"]]
     async with pool.acquire() as c:
         rows = await c.fetch(
-            """
+            f"""
             select e.id, e.status, e.tentativas, e.coletada_em, e.entregue_em,
                    e.sla_cumprido, e.logger_id, e.distancia_km,
                    p.ref_externa, p.faixa, p.temp_min, p.temp_max, p.termolabil,
@@ -216,14 +314,16 @@ async def listar_painel():
             join destinatarios d on d.id = p.destinatario_id
             left join motoristas mo on mo.id = e.motorista_id
             left join veiculos ve on ve.id = e.veiculo_id
+            {where_cli}
             order by e.criado_em desc
-            """)
+            """, *params)
     return [jsonable(r) for r in rows]
 
 
 @app.get("/entregas/{entrega_id}")
-async def detalhe_entrega(entrega_id: str):
+async def detalhe_entrega(entrega_id: str, user: dict = Depends(current_user)):
     async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, entrega_id)
         ent = await c.fetchrow(
             """select e.*, p.faixa, p.temp_min, p.temp_max, p.ref_externa, p.valor_declarado,
                       p.janela_inicio, p.janela_fim, cli.razao_social as cliente, d.nome as destinatario
@@ -250,8 +350,9 @@ async def detalhe_entrega(entrega_id: str):
 
 
 @app.post("/entregas/{entrega_id}/eventos", status_code=201)
-async def add_evento(entrega_id: str, ev: EventoIn):
+async def add_evento(entrega_id: str, ev: EventoIn, user: dict = Depends(current_user)):
     async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, entrega_id)
         ev_id = await c.fetchval(
             """insert into eventos (entrega_id, tipo, autor, lat, lng, detalhe)
                values ($1,$2,$3,$4,$5,$6) returning id""",
@@ -261,12 +362,13 @@ async def add_evento(entrega_id: str, ev: EventoIn):
 
 
 @app.post("/entregas/{entrega_id}/leituras", status_code=201)
-async def ingerir_leituras(entrega_id: str, body: LeiturasBatch):
+async def ingerir_leituras(entrega_id: str, body: LeiturasBatch, user: dict = Depends(current_user)):
     """Upsert idempotente do lote do data logger + avaliação de excursão no banco."""
     if not body.leituras:
         raise HTTPException(400, "lote vazio")
     rows = [(entrega_id, l.lido_em, l.temp_c, l.umidade, body.logger_id) for l in body.leituras]
     async with pool.acquire() as c, c.transaction():
+        await ensure_owns_entrega(c, user, entrega_id)
         await c.executemany(
             """insert into leituras_temperatura (entrega_id, lido_em, temp_c, umidade, logger_id)
                values ($1,$2,$3,$4,$5) on conflict (entrega_id, lido_em) do nothing""", rows)
@@ -276,8 +378,9 @@ async def ingerir_leituras(entrega_id: str, body: LeiturasBatch):
 
 
 @app.post("/entregas/{entrega_id}/pod", status_code=201)
-async def registrar_pod(entrega_id: str, pod: PodIn):
+async def registrar_pod(entrega_id: str, pod: PodIn, user: dict = Depends(current_user)):
     async with pool.acquire() as c, c.transaction():
+        await ensure_owns_entrega(c, user, entrega_id)
         pod_id = await c.fetchval(
             """insert into pods (entrega_id, foto_url, assinatura_url, recebedor_nome, recebedor_doc, lat, lng)
                values ($1,$2,$3,$4,$5,$6,$7) returning id""",
@@ -291,8 +394,8 @@ async def registrar_pod(entrega_id: str, pod: PodIn):
 
 
 @app.get("/entregas/{entrega_id}/dossie")
-async def gerar_dossie(entrega_id: str):
-    det = await detalhe_entrega(entrega_id)
+async def gerar_dossie(entrega_id: str, user: dict = Depends(current_user)):
+    det = await detalhe_entrega(entrega_id, user)
     ent, exc = det["entrega"], det["excursao"]
     km = ent.get("distancia_km")
     co2 = round(float(km) * CO2_KG_POR_KM, 1) if km else None
@@ -372,8 +475,10 @@ async def call_anthropic(system: str, mensagens: List[Mensagem]) -> str:
 
 
 @app.post("/agente/responder")
-async def agente_responder(body: AgenteIn):
+@limiter.limit("5/minute;100/day")
+async def agente_responder(request: Request, body: AgenteIn, user: dict = Depends(current_user)):
     async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, body.entrega_id)
         ctx = await c.fetchrow(
             """select e.status, p.ref_externa, p.janela_inicio, p.janela_fim,
                       coalesce(d.endereco_norm, d.endereco_raw) as endereco, d.nome as destinatario

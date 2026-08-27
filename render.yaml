@@ -12,9 +12,13 @@ services:
         value: 3.12.5
       - key: DATABASE_URL
         sync: false           # cole a URL do Supabase no dashboard (sslmode=require)
+      - key: SUPABASE_JWT_SECRET
+        sync: false           # Supabase → Settings → API → JWT Secret; obrigatório
       - key: ANTHROPIC_API_KEY
         sync: false           # chave da Anthropic, opcional para o /agente
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-4-6
       - key: CORS_ORIGINS
-        sync: false           # ex.: https://chamacarga.vercel.app,https://app.seudominio.com
+        sync: false           # ex.: https://chamacarga.vercel.app  (não use *)
+      - key: SERVICE_TOKEN
+        sync: false           # opcional: token de bypass para simulador/cron

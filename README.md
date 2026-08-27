@@ -121,13 +121,54 @@ Pronto: painel em `/`, PWA do motorista em `/motorista` — instalável no celul
 | 2 | Backend / API | `backend/main.py`, `backend/README.md` |
 | 3 | Front ligado ao backend | `frontend/src/ChamacargaMVP.jsx`, `frontend/src/api.js` |
 | 4 | Logger + WhatsApp | `docs/chamacarga_datalogger.md`, `docs/chamacarga_agente_whatsapp.md` |
-| 5 | Hardening | (próximo: auth, RLS, rate limit — ver `docs/Chamacarga_Roteiro_Execucao.md`) |
+| 5 | Hardening | `backend/main.py` (JWT+rate limit), `db/04_rls_policies.sql`, `render.yaml` |
 | 6 | Piloto | `comercial/` |
 
-## Próximos passos (Semana 5 — hardening)
+## Hardening (Sprint 1) — o que mudou
 
-- [ ] Autenticação nos endpoints (JWT/API key).
-- [ ] Travar `CORS_ORIGINS` no `.env` para o domínio real.
-- [ ] Rate limit no `/agente/responder` (custo Anthropic).
-- [ ] Ativar e testar policies de RLS por `cliente_id` no Supabase.
-- [ ] Retenção / mascaramento LGPD dos campos pessoais em `destinatarios`.
+Toda rota, exceto `/health`, agora exige `Authorization: Bearer <JWT>`.
+O JWT precisa carregar o claim `cliente_id` (top-level ou em
+`app_metadata`) — o backend rejeita com 403 se estiver ausente e filtra
+todas as consultas por esse valor.
+
+**Env vars novas obrigatórias no backend:**
+
+- `SUPABASE_JWT_SECRET` — Supabase → Settings → API → JWT Secret.
+- `CORS_ORIGINS` — não aceita mais `*`, tem que ser lista explícita.
+- `SERVICE_TOKEN` (opcional) — se preenchido, requests com esse Bearer
+  bypassam o filtro de `cliente_id` (uso interno: simulador, cron).
+
+**Banco:** rodar `db/04_rls_policies.sql` no Supabase para habilitar RLS
+em todas as tabelas de tenant (defesa em profundidade — o backend já
+filtra, mas RLS pega qualquer outra conexão).
+
+**Rate limit:** `/agente/responder` limitado a 5/min e 100/dia por IP
+(slowapi). Ajuste em `backend/main.py` conforme o piloto.
+
+**Fluxo de token pro front (Sprint 1 provisório):**
+enquanto a UI de login não é feita (Sprint 2), cole um JWT válido em
+`localStorage.chamacarga_token` no console do navegador. Como gerar um
+em dev:
+
+```sql
+-- No Supabase Studio, crie um usuário via Auth e adicione o claim:
+update auth.users
+set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('cliente_id', '<uuid do cliente>')
+where email = 'seu@email.com';
+-- Depois faça login pelo Supabase Auth (ou use a API) e copie o access_token.
+```
+
+**Simulador:** exportar `CHAMACARGA_TOKEN=<SERVICE_TOKEN ou JWT>` antes
+de rodar `scripts/simulador_logger.py`.
+
+## Próximos passos (Sprint 2)
+
+- [ ] UI de login no frontend (Supabase Auth SDK) — remove o "cole
+      token no localStorage".
+- [ ] Retenção / mascaramento LGPD dos campos pessoais em
+      `destinatarios` (job mensal + máscara em `endereco_raw`/`documento`).
+- [ ] Log imutável assinado (hash-chain) — requisito RDC 430/653 para
+      vender pra distribuidora farma.
+- [ ] Metadado `sensor_certificado_rbc` + validade em
+      `leituras_temperatura` (ISO 17025).
+- [ ] Perfis de alerta por tipo de produto (farma vs. frigorífico).
