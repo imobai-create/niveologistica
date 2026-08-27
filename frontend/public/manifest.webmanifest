@@ -1,6 +1,6 @@
 {
-  "name": "Rastro Motorista",
-  "short_name": "Rastro",
+  "name": "Chamacarga Motorista",
+  "short_name": "Chamacarga",
   "description": "App do motorista — registro de POD e custódia",
   "start_url": "/motorista",
   "scope": "/",

@@ -1,4 +1,4 @@
-# Rastro — Roteiro de Execução (6 semanas)
+# Chamacarga — Roteiro de Execução (6 semanas)
 
 Ordem de montagem do MVP, com o que validar em cada etapa (o "gate" que libera a
 próxima). A trilha **legal/comercial** roda em paralelo desde a Semana 0 — não espere
@@ -11,7 +11,7 @@ o software ficar pronto pra começar a vender.
 Resolva ANTES de escrever qualquer linha:
 
 - [ ] **Celular dos motoristas: Android.** O Web Bluetooth não roda em iPhone — se a
-      frota for Android, o app de leitura do logger é um PWA simples. (ver `rastro_datalogger.md`)
+      frota for Android, o app de leitura do logger é um PWA simples. (ver `chamacarga_datalogger.md`)
 - [ ] **Escolher o data logger** com SDK/export E **certificado de calibração** (exigência de auditoria).
 - [ ] **Conta Supabase** (banco) + **chave da API Anthropic** (agente).
 - [ ] **1 conta-âncora** definida para o piloto (alvo: 3PH Medicamentos).
@@ -22,7 +22,7 @@ Resolva ANTES de escrever qualquer linha:
 
 ## Semana 1 — Banco de dados
 
-- [ ] Rodar `rastro_schema.sql` no SQL Editor do Supabase.
+- [ ] Rodar `chamacarga_schema.sql` no SQL Editor do Supabase.
 - [ ] `alter table entregas add column if not exists distancia_km numeric;`
 - [ ] Inserir 1 cliente e 1 destinatário de teste via SQL.
 - [ ] Planejar (ainda não ativar) as policies de RLS por cliente.
@@ -44,7 +44,7 @@ quando você manda uma leitura fora da faixa.
 
 ## Semana 3 — Front-end
 
-- [ ] Pegar `RastroMVP.jsx` e trocar o seed/`window.storage` por `fetch` aos endpoints
+- [ ] Pegar `ChamacargaMVP.jsx` e trocar o seed/`window.storage` por `fetch` aos endpoints
       (`GET /entregas`, `GET /entregas/{id}`, dossiê).
 - [ ] App do motorista mínimo para POD (foto + GPS + assinatura) — PWA simples.
 
@@ -107,11 +107,11 @@ responde no WhatsApp sandbox e aplica a ação (REAGENDAR/ESCALAR).
 
 | Arquivo | Para quê |
 |---|---|
-| `rastro_schema.sql` | Banco (Supabase) |
-| `main.py` + `requirements.txt` + `README_rastro_api.md` | Backend (API) |
-| `RastroMVP.jsx` | Front-end (painel) |
-| `rastro_agente_whatsapp.md` | Prompt do agente |
-| `rastro_datalogger.md` | Integração do sensor de temperatura |
-| `Rastro_Arquitetura.svg` | Diagrama de arquitetura |
+| `chamacarga_schema.sql` | Banco (Supabase) |
+| `main.py` + `requirements.txt` + `README_chamacarga_api.md` | Backend (API) |
+| `ChamacargaMVP.jsx` | Front-end (painel) |
+| `chamacarga_agente_whatsapp.md` | Prompt do agente |
+| `chamacarga_datalogger.md` | Integração do sensor de temperatura |
+| `Chamacarga_Arquitetura.svg` | Diagrama de arquitetura |
 | `Proposta_Comercial_LastMile.docx` · `Contrato_Piloto_LastMile.docx` | Comercial/jurídico |
 | `IMOBAI_LastMile_3furgoes_VIAVEL.xlsx` | Viabilidade financeira |

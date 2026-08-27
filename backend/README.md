@@ -1,11 +1,11 @@
-# Rastro API — backend MVP
+# Chamacarga API — backend MVP
 
-FastAPI ligando o painel Rastro ao Postgres do Supabase. A lógica de excursão
+FastAPI ligando o painel Chamacarga ao Postgres do Supabase. A lógica de excursão
 térmica vive no banco (`avaliar_excursao()`); a API só orquestra.
 
 ## 1. Pré-requisitos no banco
 
-1. Rode `rastro_schema.sql` no SQL Editor do Supabase.
+1. Rode `chamacarga_schema.sql` no SQL Editor do Supabase.
 2. Adicione a coluna de distância (usada no cálculo de CO₂ do dossiê):
 
 ```sql
@@ -49,7 +49,7 @@ Docs interativas em `http://localhost:8000/docs`.
 | GET  | `/entregas/{id}/dossie` | dossiê de conformidade + ESG |
 | POST | `/agente/responder` | agente WhatsApp (chama a API da Anthropic; aplica REAGENDAR/ESCALAR) |
 
-## 5. Ligar o front (RastroMVP.jsx)
+## 5. Ligar o front (ChamacargaMVP.jsx)
 
 No protótipo, troque o seed/`window.storage` por chamadas a estes endpoints:
 `GET /entregas` na lista, `GET /entregas/{id}` no detalhe, e `POST /agente/responder`

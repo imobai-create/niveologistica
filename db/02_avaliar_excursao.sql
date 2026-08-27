@@ -1,5 +1,5 @@
 -- =====================================================================
--- RASTRO — Função avaliar_excursao(entrega, tolerancia_min)
+-- CHAMACARGA — Função avaliar_excursao(entrega, tolerancia_min)
 -- Chamada após cada lote de leituras ingerido pelo backend.
 -- Gera UM alerta consolidado + evento imutável quando o tempo fora da
 -- faixa excede a tolerância (default 10 min). Lógica do MVP: somatório

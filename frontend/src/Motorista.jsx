@@ -33,7 +33,7 @@ export default function Motorista() {
     <div style={{ background: C.paper, color: C.ink, fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif" }} className="min-h-screen">
       <header style={{ background: C.bg, color: "#fff" }} className="px-4 py-3 flex items-center gap-2">
         <Truck size={20} color={C.mint} />
-        <span className="font-semibold">Rastro · Motorista</span>
+        <span className="font-semibold">Chamacarga · Motorista</span>
         <button onClick={carregar} className="ml-auto text-xs flex items-center gap-1 opacity-80">
           <RotateCcw size={13} /> Atualizar
         </button>

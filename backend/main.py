@@ -1,5 +1,5 @@
 """
-RASTRO API — backend MVP (FastAPI + Postgres/Supabase)
+CHAMACARGA API — backend MVP (FastAPI + Postgres/Supabase)
 Liga o painel ao schema: ingestão de leituras, criação de entrega, custódia,
 POD, dossiê e o agente de WhatsApp (chamada real à API da Anthropic).
 
@@ -35,7 +35,7 @@ async def lifespan(_app: FastAPI):
     await pool.close()
 
 
-app = FastAPI(title="Rastro API", version="0.1", lifespan=lifespan)
+app = FastAPI(title="Chamacarga API", version="0.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
 )
@@ -316,7 +316,7 @@ async def gerar_dossie(entrega_id: str):
 # ----------------------------- agente ---------------------------------
 def build_system(ctx: dict, slots: List[dict]) -> str:
     slots_txt = " | ".join(f'{s["inicio"]} a {s["fim"]}' for s in slots)
-    return f"""Você é o assistente de entregas da Rastro Logística, operação premium de last-mile.
+    return f"""Você é o assistente de entregas da Chamacarga Logística, operação premium de last-mile.
 Converse por WhatsApp com o DESTINATÁRIO para confirmar/agendar janela, informar status/ETA e reagendar.
 Tom cordial, objetivo, profissional, português do Brasil; mensagens curtas; no máx. 1 emoji.
 

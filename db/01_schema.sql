@@ -1,5 +1,5 @@
 -- =====================================================================
--- RASTRO — Modelo de dados (PostgreSQL / Supabase)
+-- CHAMACARGA — Modelo de dados (PostgreSQL / Supabase)
 -- Núcleo de custódia auditável para last-mile de carga sensível.
 -- Princípios: 1 fonte de verdade por entrega; log de eventos imutável;
 -- série temporal de temperatura; isolamento por cliente (RLS); LGPD.
@@ -118,7 +118,7 @@ create index on entregas (criado_em);
 
 -- ---------------------------------------------------------------------
 -- EVENTOS — cadeia de custódia (APPEND-ONLY / imutável)
--- É a espinha do "Rastro": cada mudança vira um evento auditável.
+-- É a espinha do "Chamacarga": cada mudança vira um evento auditável.
 -- ---------------------------------------------------------------------
 create table eventos (
   id            uuid primary key default gen_random_uuid(),
