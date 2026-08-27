@@ -1,5 +1,5 @@
 -- =====================================================================
--- RASTRO — Seed mínimo para validar o ciclo da Semana 1.
+-- CHAMACARGA — Seed mínimo para validar o ciclo da Semana 1.
 -- 1 cliente (3PH), 1 destinatário, 1 motorista, 1 veículo, 1 pedido
 -- termolábil 2–8°C, 1 entrega. Os IDs ficam disponíveis para chamadas
 -- de teste no /docs do backend.

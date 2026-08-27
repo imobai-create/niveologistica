@@ -1,4 +1,4 @@
-// Cliente da API Rastro. Mapeia o shape do backend para o shape que o painel consome.
+// Cliente da API Chamacarga. Mapeia o shape do backend para o shape que o painel consome.
 // Não há chave de API no front: o /agente/responder vive no backend.
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";

@@ -1,4 +1,4 @@
-# RASTRO — Integração do Data Logger de Temperatura (Cold-Chain Guard)
+# CHAMACARGA — Integração do Data Logger de Temperatura (Cold-Chain Guard)
 
 Como a curva de temperatura sai do sensor BLE, entra em `leituras_temperatura`
 e dispara o alerta de excursão térmica.

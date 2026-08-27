@@ -108,7 +108,7 @@ const EVENTO_ICON = {
 
 /* --------------------------- Agent prompt -------------------------- */
 function buildSystem(e) {
-  return `Você é o assistente de entregas da Rastro Logística, operação premium de last-mile.
+  return `Você é o assistente de entregas da Chamacarga Logística, operação premium de last-mile.
 Converse por WhatsApp com o DESTINATÁRIO para confirmar/agendar janela, informar status/ETA e reagendar.
 Tom cordial, objetivo, profissional, português do Brasil, mensagens curtas (2–4 frases), no máx. 1 emoji.
 
@@ -147,7 +147,7 @@ const Stat = ({ label, value, color }) => (
 );
 
 /* ----------------------------- Main ------------------------------- */
-export default function RastroMVP() {
+export default function ChamacargaMVP() {
   const [entregas, setEntregas] = useState(null);
   const [sel, setSel] = useState(null);
   const [tab, setTab] = useState("custodia");
@@ -194,7 +194,7 @@ export default function RastroMVP() {
   const reset = () => carregarLista();
 
   if (!entregas) {
-    return <div style={{ background: C.paper, color: C.mute, fontFamily: sans }} className="h-screen flex items-center justify-center">Carregando Rastro…</div>;
+    return <div style={{ background: C.paper, color: C.mute, fontFamily: sans }} className="h-screen flex items-center justify-center">Carregando Chamacarga…</div>;
   }
   const e = entregas.find((x) => x.id === sel) || entregas[0];
   const exc = computeExcursion(e.leituras, e.temp_min, e.temp_max);
@@ -210,7 +210,7 @@ export default function RastroMVP() {
             <Activity size={18} color={C.bg} />
           </div>
           <div>
-            <div style={{ fontFamily: serif, color: "#fff" }} className="text-lg font-bold leading-none">Rastro</div>
+            <div style={{ fontFamily: serif, color: "#fff" }} className="text-lg font-bold leading-none">Chamacarga</div>
             <div style={{ color: "#9DB3AC" }} className="text-xs">Painel de custódia · MVP</div>
           </div>
         </div>

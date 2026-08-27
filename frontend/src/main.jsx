@@ -1,10 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import RastroMVP from "./RastroMVP.jsx";
+import ChamacargaMVP from "./ChamacargaMVP.jsx";
 import Motorista from "./Motorista.jsx";
 import "./index.css";
 
-const Root = window.location.pathname.startsWith("/motorista") ? Motorista : RastroMVP;
+const Root = window.location.pathname.startsWith("/motorista") ? Motorista : ChamacargaMVP;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

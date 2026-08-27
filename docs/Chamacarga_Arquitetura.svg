@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 690" font-family="Segoe UI, Arial">
 <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#1E5F4F"/></marker><marker id="arrm" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#2FBF93"/></marker></defs>
 <rect x="0" y="0" width="1060" height="690" rx="0" fill="#F4F8F6" opacity="1"/>
-<text x="34" y="46" font-family="Segoe UI, Arial" font-size="27" font-weight="bold" fill="#1E5F4F" text-anchor="start" letter-spacing="0">Rastro</text>
+<text x="34" y="46" font-family="Segoe UI, Arial" font-size="27" font-weight="bold" fill="#1E5F4F" text-anchor="start" letter-spacing="0">Chamacarga</text>
 <text x="150" y="46" font-family="Segoe UI, Arial" font-size="17" font-weight="normal" fill="#16241F" text-anchor="start" letter-spacing="0">— camada de inteligência sobre cada entrega</text>
 <text x="34" y="70" font-family="Segoe UI, Arial" font-size="12.5" font-weight="normal" fill="#5C6F69" text-anchor="start" letter-spacing="0">Transforma dado de custódia em operação enxuta + dossiê de compliance/ESG vendável</text>
 <rect x="24" y="92" width="232" height="26" rx="7" fill="#1E5F4F" opacity="1"/>
@@ -9,7 +9,7 @@
 <rect x="286" y="92" width="196" height="26" rx="7" fill="#1E5F4F" opacity="1"/>
 <text x="384.0" y="109" font-family="Segoe UI, Arial" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">2 · DADOS</text>
 <rect x="512" y="92" width="300" height="26" rx="7" fill="#1E5F4F" opacity="1"/>
-<text x="662.0" y="109" font-family="Segoe UI, Arial" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">3 · IA — RASTRO</text>
+<text x="662.0" y="109" font-family="Segoe UI, Arial" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">3 · IA — CHAMACARGA</text>
 <rect x="842" y="92" width="194" height="26" rx="7" fill="#1E5F4F" opacity="1"/>
 <text x="939.0" y="109" font-family="Segoe UI, Arial" font-size="12" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">4 · SAÍDAS</text>
 <rect x="30" y="140" width="220" height="62" rx="10" fill="#FFFFFF" stroke="#C9D9D3" stroke-width="1.4" opacity="1"/>

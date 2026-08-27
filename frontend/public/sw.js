@@ -1,6 +1,6 @@
 // Service worker mínimo: precache do shell e network-first p/ API.
 // Substitua por Workbox quando precisar de offline-first sério.
-const CACHE = "rastro-shell-v1";
+const CACHE = "chamacarga-shell-v1";
 const SHELL = ["/", "/motorista", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

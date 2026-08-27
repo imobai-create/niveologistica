@@ -1,4 +1,4 @@
-# RASTRO — Prompt do Agente de WhatsApp (Comms Agent)
+# CHAMACARGA — Prompt do Agente de WhatsApp (Comms Agent)
 # Cole como system prompt. Injete o bloco CONTEXTO a cada conversa.
 # Modelo recomendado: Claude. Saída SEMPRE em dois blocos: MENSAGEM + AÇÃO (JSON).
 

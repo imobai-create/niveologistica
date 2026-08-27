@@ -1,4 +1,4 @@
-# Rastro — MVP
+# Chamacarga — MVP
 
 Núcleo de custódia auditável para last-mile de carga sensível (farma 2–8 °C,
 15–30 °C, etc.). Painel + API + banco + agente de WhatsApp.
@@ -90,13 +90,13 @@ nos dois e clica deploy.
 
 1. Em https://render.com → **New +** → **Blueprint**.
 2. Conecte o repositório `niveologistica`. O Render lê o `render.yaml` da
-   raiz e propõe o serviço `rastro-api`.
+   raiz e propõe o serviço `chamacarga-api`.
 3. Preencha as env vars marcadas como `sync: false`:
    - `DATABASE_URL` — connection string do Supabase (com `?sslmode=require`).
    - `ANTHROPIC_API_KEY` — opcional, só se quiser o agente respondendo.
    - `CORS_ORIGINS` — depois que o frontend subir, cole aqui a URL da Vercel
-     (ex.: `https://rastro.vercel.app`).
-4. Clique **Apply**. URL final tipo `https://rastro-api.onrender.com`.
+     (ex.: `https://chamacarga.vercel.app`).
+4. Clique **Apply**. URL final tipo `https://chamacarga-api.onrender.com`.
 
 > Plano free dorme após 15 min ocioso e cold-start leva ~30 s. Para piloto
 > com cliente, suba para **Starter** ($7/mês, sempre ligado).
@@ -108,7 +108,7 @@ nos dois e clica deploy.
    `vercel.json` cuida do resto (SPA rewrites + headers do PWA).
 3. Em **Environment Variables**, defina:
    - `VITE_API_URL` = a URL do Render acima.
-4. **Deploy**. URL tipo `https://rastro.vercel.app`. Volte no Render e
+4. **Deploy**. URL tipo `https://chamacarga.vercel.app`. Volte no Render e
    adicione essa URL em `CORS_ORIGINS`.
 
 Pronto: painel em `/`, PWA do motorista em `/motorista` — instalável no celular.
@@ -119,9 +119,9 @@ Pronto: painel em `/`, PWA do motorista em `/motorista` — instalável no celul
 |---|---|---|
 | 1 | Banco | `db/*.sql` |
 | 2 | Backend / API | `backend/main.py`, `backend/README.md` |
-| 3 | Front ligado ao backend | `frontend/src/RastroMVP.jsx`, `frontend/src/api.js` |
-| 4 | Logger + WhatsApp | `docs/rastro_datalogger.md`, `docs/rastro_agente_whatsapp.md` |
-| 5 | Hardening | (próximo: auth, RLS, rate limit — ver `docs/Rastro_Roteiro_Execucao.md`) |
+| 3 | Front ligado ao backend | `frontend/src/ChamacargaMVP.jsx`, `frontend/src/api.js` |
+| 4 | Logger + WhatsApp | `docs/chamacarga_datalogger.md`, `docs/chamacarga_agente_whatsapp.md` |
+| 5 | Hardening | (próximo: auth, RLS, rate limit — ver `docs/Chamacarga_Roteiro_Execucao.md`) |
 | 6 | Piloto | `comercial/` |
 
 ## Próximos passos (Semana 5 — hardening)

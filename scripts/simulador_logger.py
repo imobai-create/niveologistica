@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simulador de logger BLE — Rastro
+Simulador de logger BLE — Chamacarga
 ================================
 
 Gera leituras de temperatura/umidade e (opcionalmente) eventos de GPS / choque
@@ -243,7 +243,7 @@ def postar_choque(api: str, entrega_id: str, logger_id: str, gps: tuple | None):
 # ----------------------------- CLI -------------------------------------
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Simulador de logger BLE para o Rastro")
+    p = argparse.ArgumentParser(description="Simulador de logger BLE para o Chamacarga")
     p.add_argument("--api", default="http://localhost:8000", help="URL base do backend")
     p.add_argument("--listar", action="store_true", help="Lista entregas em aberto e sai")
     p.add_argument("--entrega", help="UUID da entrega alvo")
