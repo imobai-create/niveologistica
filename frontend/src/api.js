@@ -3,11 +3,23 @@
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+// Token JWT (Supabase). Sprint 1: guardado em localStorage manualmente ou
+// injetado pelo callback do Supabase Auth. Sprint 2 fará a UI de login.
+function getToken() {
+  try { return localStorage.getItem("chamacarga_token") || ""; } catch { return ""; }
+}
+export function setToken(t) {
+  try { t ? localStorage.setItem("chamacarga_token", t) : localStorage.removeItem("chamacarga_token"); } catch {}
+}
+
 async function req(path, opts = {}) {
-  const r = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-    ...opts,
-  });
+  const token = getToken();
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const r = await fetch(`${BASE}${path}`, { ...opts, headers });
+  if (r.status === 401 || r.status === 403) {
+    throw new Error(`${r.status} sessão inválida ou sem cliente_id — cole um token em localStorage.chamacarga_token`);
+  }
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.status === 204 ? null : r.json();
 }
