@@ -1,0 +1,90 @@
+/* =====================================================================
+ * Chamacarga — design tokens
+ * Palette com viés vegetal-frio (evita "AI-slop cream/beige").
+ * Type: Fraunces (display/laudo), Inter (UI), JetBrains Mono (data).
+ * Suporte a três estados de tema: sistema (default), light explícito,
+ * dark explícito — via data-theme na <html>.
+ * ===================================================================== */
+
+:root {
+  /* Light (default) */
+  --bg: #F7F8F5;
+  --surface: #FFFFFF;
+  --surface-2: #F1F3EF;
+  --ink: #0F1F1B;
+  --ink-2: #4B5A55;
+  --ink-3: #7B8A85;
+  --line: #DDE3DE;
+  --line-2: #EAEEEA;
+
+  --accent: #0F7A5C;
+  --accent-ink: #063E2F;
+
+  --amber: #B76A00;
+  --amber-soft: #FBEED6;
+  --crit: #B23A2E;
+  --crit-soft: #F7DFDB;
+  --ok: #397A5A;
+  --ok-soft: #E1EFE7;
+
+  --shadow: 0 1px 2px rgba(15,31,27,0.04), 0 4px 12px rgba(15,31,27,0.05);
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Fira Code", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1512;
+    --surface: #13201C;
+    --surface-2: #182823;
+    --ink: #E8ECE9;
+    --ink-2: #A6B3AE;
+    --ink-3: #6E7E79;
+    --line: #223129;
+    --line-2: #1B2721;
+    --accent: #35B78E;
+    --accent-ink: #A9E5CE;
+    --amber: #E39A3E;
+    --amber-soft: #3A2A15;
+    --crit: #E36B5D;
+    --crit-soft: #3E1E1A;
+    --ok: #6BC29A;
+    --ok-soft: #1D2E25;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0B1512;
+  --surface: #13201C;
+  --surface-2: #182823;
+  --ink: #E8ECE9;
+  --ink-2: #A6B3AE;
+  --ink-3: #6E7E79;
+  --line: #223129;
+  --line-2: #1B2721;
+  --accent: #35B78E;
+  --accent-ink: #A9E5CE;
+  --amber: #E39A3E;
+  --amber-soft: #3A2A15;
+  --crit: #E36B5D;
+  --crit-soft: #3E1E1A;
+  --ok: #6BC29A;
+  --ok-soft: #1D2E25;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+}
+
+/* Reset básico do body — tokens aplicados */
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
