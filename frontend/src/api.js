@@ -106,3 +106,35 @@ export async function adicionarEvento(entregaId, evento) {
     body: JSON.stringify(evento),
   });
 }
+
+// ============================================================
+// ROTAS PÚBLICAS (sem JWT — usam token opaco na URL)
+// Backend correspondente: Sprint 3.
+// ============================================================
+
+async function reqPublic(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  const r = await fetch(`${BASE}${path}`, { ...opts, headers });
+  if (r.status === 404) throw new Error("404 link expirado ou inválido");
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.status === 204 ? null : r.json();
+}
+
+// GET /r/{token} — o que o destinatário vê ao abrir o link.
+// Retorna: { entrega: {cliente, faixa, temp_min, temp_max, data}, slots: [{id, inicio, fim, capacidade, vagas_livres}], transportador: {nome, empresa, rating, entregas, rbc_valido, iniciais} }
+export async function receberInfo(token) {
+  return reqPublic(`/r/${encodeURIComponent(token)}`);
+}
+
+// POST /r/{token}/reservar — confirma a janela escolhida pelo destinatário.
+export async function reservarJanela(token, slotId) {
+  return reqPublic(`/r/${encodeURIComponent(token)}/reservar`, {
+    method: "POST",
+    body: JSON.stringify({ slot_id: slotId }),
+  });
+}
+
+// GET /d/{token} — dossiê público ANVISA-ready da entrega.
+export async function dossiePublico(token) {
+  return reqPublic(`/d/${encodeURIComponent(token)}`);
+}
