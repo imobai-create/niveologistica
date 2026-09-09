@@ -1,14 +1,22 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ChamacargaMVP from "./ChamacargaMVP.jsx";
 import Motorista from "./Motorista.jsx";
+import ReservarJanela from "./ReservarJanela.jsx";
+import DossiePublico from "./DossiePublico.jsx";
 import "./index.css";
-
-const Root = window.location.pathname.startsWith("/motorista") ? Motorista : ChamacargaMVP;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Root />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ChamacargaMVP />} />
+        <Route path="/motorista" element={<Motorista />} />
+        <Route path="/r/:token" element={<ReservarJanela />} />
+        <Route path="/d/:token" element={<DossiePublico />} />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>,
 );
 
