@@ -161,14 +161,46 @@ where email = 'seu@email.com';
 **Simulador:** exportar `CHAMACARGA_TOKEN=<SERVICE_TOKEN ou JWT>` antes
 de rodar `scripts/simulador_logger.py`.
 
-## Próximos passos (Sprint 2)
+## Sprint 3 — o que mudou
 
+Rotas públicas do destinatário (`/r/:token`) e do dossiê (`/d/:token`) ganham
+banco e endpoints reais.
+
+**Banco (`db/05_reservas_publicos.sql`, aplicar no Supabase):**
+
+- `janelas_ofertadas` — o 3PL cadastra opções de janela por entrega.
+- `reservas` — o destinatário confirma uma janela; único por
+  `(entrega_id, janela_id)`.
+- `tokens_publicos` — token opaco curto (`a7f3-b2c1`) com TTL, tipo
+  `'r'` (reserva) ou `'d'` (dossiê).
+- `eventos.hash_prev` + `eventos.hash_atual` — hash-chain SHA-256 via
+  trigger `trg_eventos_hash_chain`. Cada evento novo referencia o hash
+  do anterior da mesma entrega, tornando o log verificável ponta a ponta
+  (requisito RDC 430/653). Backfill em cascata para eventos já existentes.
+
+**Backend (`backend/main.py`):**
+
+- `POST /entregas/{id}/janelas` — cadastra oferta de janela (autenticado).
+- `POST /entregas/{id}/tokens?tipo=r|d&dias=7` — gera link público
+  (autenticado); retorna `{"token": "...", "url": "/r/..."}`.
+- `GET /r/{token}` — o que o destinatário vê (público).
+- `POST /r/{token}/reservar` `{slot_id}` — confirma janela (público).
+  Grava evento `reagendada` com autor `destinatario`, entra no
+  hash-chain automaticamente.
+- `GET /d/{token}` — dossiê público formato laudo (público). Traz o
+  hash do último evento como prova de integridade.
+
+## Próximos passos (Sprint 4+)
+
+- [ ] WhatsApp Business Cloud API — o 3PL cria a entrega, backend gera
+      token `r`, envia link ao destinatário. Cadastro Meta Business é o
+      gargalo (2–4 semanas de aprovação).
+- [ ] SMS fallback (Zenvia/Twilio) pra quando o WhatsApp travar.
+- [ ] Upload POD (foto + assinatura) pro Supabase Storage.
 - [ ] UI de login no frontend (Supabase Auth SDK) — remove o "cole
       token no localStorage".
+- [ ] Cron de expiração de reservas + detecção de sensor mudo.
 - [ ] Retenção / mascaramento LGPD dos campos pessoais em
       `destinatarios` (job mensal + máscara em `endereco_raw`/`documento`).
-- [ ] Log imutável assinado (hash-chain) — requisito RDC 430/653 para
-      vender pra distribuidora farma.
 - [ ] Metadado `sensor_certificado_rbc` + validade em
       `leituras_temperatura` (ISO 17025).
-- [ ] Perfis de alerta por tipo de produto (farma vs. frigorífico).

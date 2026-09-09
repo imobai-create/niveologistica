@@ -14,7 +14,7 @@ Env:  DATABASE_URL, SUPABASE_JWT_SECRET, CORS_ORIGINS
       SERVICE_TOKEN (opcional; se setado, bypassa filtro por cliente_id)
 Rodar: uvicorn main:app --reload
 """
-import os, json, re
+import hashlib, os, json, re, secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
@@ -516,3 +516,301 @@ async def agente_responder(request: Request, body: AgenteIn, user: dict = Depend
                        values ($1,'escalonamento','media',$2)""",
                     body.entrega_id, acao.get("motivo_escalonamento") or "Escalonamento solicitado pelo agente")
     return {"mensagem": msg, "acao": acao}
+
+
+# =====================================================================
+# ROTAS PÚBLICAS — sem JWT (Sprint 3)
+# Token opaco na URL faz autenticação: o 3PL gera o link, manda por
+# WhatsApp/SMS, destinatário/embarcador abre. Anônimo mas rastreado.
+# =====================================================================
+
+def _gerar_token_curto() -> str:
+    """4 letras + '-' + 4 letras minúsculas. Ex.: 'a7f3-b2c1'."""
+    raw = secrets.token_urlsafe(6).replace("_", "a").replace("-", "b").lower()
+    return raw[:4] + "-" + raw[4:8]
+
+
+def _nota_slot(inicio_dt: datetime) -> str:
+    h = inicio_dt.hour
+    if h < 9:  return "manhã cedo · antes de abrir a farmácia"
+    if h < 12: return "meio da manhã · pico do movimento"
+    if h < 15: return "início da tarde · almoço acabou"
+    if h < 18: return "tarde · pouca disponibilidade"
+    return "final de tarde"
+
+
+async def resolver_token(conn, token: str, tipo: str) -> str:
+    row = await conn.fetchrow(
+        """select entrega_id from tokens_publicos
+           where token=$1 and tipo=$2 and expira_em > now()""",
+        token, tipo,
+    )
+    if not row:
+        raise HTTPException(404, "link expirado ou inválido")
+    return str(row["entrega_id"])
+
+
+class JanelaIn(BaseModel):
+    inicio: datetime
+    fim: datetime
+    capacidade: int = 1
+
+
+class ReservaIn(BaseModel):
+    slot_id: str
+
+
+@app.post("/entregas/{entrega_id}/janelas", status_code=201)
+async def criar_janela(entrega_id: str, body: JanelaIn, user: dict = Depends(current_user)):
+    """3PL cadastra uma opção de janela que o destinatário poderá escolher."""
+    if body.fim <= body.inicio:
+        raise HTTPException(400, "fim deve ser posterior a inicio")
+    async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, entrega_id)
+        jid = await c.fetchval(
+            """insert into janelas_ofertadas (entrega_id, inicio, fim, capacidade)
+               values ($1,$2,$3,$4) returning id""",
+            entrega_id, body.inicio, body.fim, body.capacidade,
+        )
+    return {"janela_id": str(jid)}
+
+
+@app.post("/entregas/{entrega_id}/tokens", status_code=201)
+async def gerar_token_publico(
+    entrega_id: str,
+    tipo: str,
+    dias: int = 7,
+    user: dict = Depends(current_user),
+):
+    """Gera link público /r/:token (reserva) ou /d/:token (dossiê)."""
+    if tipo not in ("r", "d"):
+        raise HTTPException(400, "tipo deve ser 'r' ou 'd'")
+    async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, entrega_id)
+        # tenta 3 vezes se colidir (colisão em 8 chars é ~1 em 10^7)
+        for _ in range(3):
+            token_str = _gerar_token_curto()
+            try:
+                await c.execute(
+                    """insert into tokens_publicos (token, entrega_id, tipo, expira_em)
+                       values ($1,$2,$3, now() + make_interval(days => $4))""",
+                    token_str, entrega_id, tipo, dias,
+                )
+                break
+            except asyncpg.UniqueViolationError:
+                continue
+        else:
+            raise HTTPException(500, "não foi possível gerar token único")
+    return {"token": token_str, "tipo": tipo, "url": f"/{tipo}/{token_str}"}
+
+
+@app.get("/r/{token}")
+async def receber_info_publico(token: str):
+    """Tela do destinatário — mostra transportador e slots. Sem JWT."""
+    async with pool.acquire() as c:
+        ent_id = await resolver_token(c, token, "r")
+        ctx = await c.fetchrow(
+            """select cli.razao_social as embarcador,
+                      p.temp_min, p.temp_max, p.janela_inicio, p.janela_fim,
+                      e.status, mo.nome as motorista_nome
+               from entregas e
+               join pedidos p on p.id = e.pedido_id
+               join clientes cli on cli.id = p.cliente_id
+               left join motoristas mo on mo.id = e.motorista_id
+               where e.id = $1""", ent_id)
+        janelas = await c.fetch(
+            """select j.id, j.inicio, j.fim, j.capacidade,
+                      (j.capacidade
+                       - coalesce((select count(*) from reservas r where r.janela_id = j.id), 0)
+                      )::int as vagas_livres
+               from janelas_ofertadas j
+               where j.entrega_id = $1 and j.fim > now()
+               order by j.inicio""", ent_id)
+    if not ctx:
+        raise HTTPException(404, "entrega não encontrada")
+
+    motorista_nome = ctx["motorista_nome"] or "A definir"
+    iniciais = "".join(p[:1] for p in motorista_nome.split()[:2]).upper() or "?"
+
+    faixa_txt = (f"encomenda refrigerada ({ctx['temp_min']}–{ctx['temp_max']} °C)"
+                 if ctx["temp_min"] is not None else "encomenda")
+    data_txt = (ctx["janela_inicio"].strftime("%d/%m") if ctx["janela_inicio"] else "próximos dias")
+
+    return {
+        "entrega": {
+            "cliente": ctx["embarcador"],
+            "cargo": faixa_txt,
+            "data_prevista": data_txt,
+            "reservado_ate": "24 h",
+            "transportador": {
+                "iniciais": iniciais,
+                "nome": motorista_nome,
+                "empresa": "3PH Medicamentos",  # TODO: puxar de clientes/3PL
+                "rating": 4.9,                  # TODO: sistema de rating futuro
+                "entregas": 312,                # TODO: histórico do motorista
+                "rbc_valido": True,             # TODO: campo em motoristas
+            },
+        },
+        "slots": [
+            {
+                "id": str(j["id"]),
+                "inicio": j["inicio"].astimezone().strftime("%H:%M"),
+                "fim":    j["fim"].astimezone().strftime("%H:%M"),
+                "vagas_livres": max(0, j["vagas_livres"]),
+                "nota": _nota_slot(j["inicio"].astimezone()),
+            } for j in janelas
+        ],
+    }
+
+
+@app.post("/r/{token}/reservar", status_code=201)
+async def reservar_janela_publico(token: str, body: ReservaIn, request: Request):
+    """Destinatário confirma janela. Anônimo — token é o auth."""
+    ip = request.client.host if request.client else "?"
+    ip_h = hashlib.sha256(ip.encode()).hexdigest()[:16]
+    async with pool.acquire() as c, c.transaction():
+        ent_id = await resolver_token(c, token, "r")
+        janela = await c.fetchrow(
+            """select id, capacidade from janelas_ofertadas
+               where id = $1 and entrega_id = $2""",
+            body.slot_id, ent_id,
+        )
+        if not janela:
+            raise HTTPException(404, "janela indisponível")
+        usadas = await c.fetchval(
+            "select count(*) from reservas where janela_id = $1", janela["id"],
+        )
+        if usadas >= janela["capacidade"]:
+            raise HTTPException(409, "janela sem vagas")
+        try:
+            r_id = await c.fetchval(
+                """insert into reservas (entrega_id, janela_id, expira_em, ip_hash)
+                   values ($1, $2, now() + interval '30 days', $3) returning id""",
+                ent_id, janela["id"], ip_h,
+            )
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(409, "esta janela já foi reservada para a entrega")
+        await c.execute(
+            "update tokens_publicos set usado_em = now() where token = $1 and tipo = 'r'",
+            token,
+        )
+        # Evento auditável (entra no hash-chain automaticamente pelo trigger)
+        await c.execute(
+            """insert into eventos (entrega_id, tipo, autor, detalhe)
+               values ($1, 'reagendada', 'destinatario', $2)""",
+            ent_id,
+            json.dumps({"reserva_id": str(r_id), "slot_id": body.slot_id, "ip_hash": ip_h}),
+        )
+    return {"reserva_id": str(r_id)}
+
+
+def _hhmm(dt) -> str:
+    return dt.astimezone().strftime("%H:%M") if dt else "—"
+
+
+def _fmt_data(dt) -> str:
+    return dt.astimezone().strftime("%d/%m · %H:%M") if dt else "—"
+
+
+def _dur(a, b) -> str:
+    if not a or not b: return "—"
+    delta = b - a
+    h = int(delta.total_seconds() // 3600)
+    m = int((delta.total_seconds() % 3600) // 60)
+    return f"{h} h {m:02d} min"
+
+
+def _evento_tone(ev: dict) -> Optional[str]:
+    t = ev.get("tipo")
+    if t in ("excursao_termica", "avaria", "falha"): return "crit"
+    if t == "entregue": return "ok"
+    return None
+
+
+def _evento_txt(ev: dict) -> str:
+    mapa = {
+        "criada": "Pedido criado",
+        "coletada": "Coleta confirmada",
+        "saiu_para_entrega": "Saiu para entrega",
+        "tentativa": "Tentativa de entrega",
+        "entregue": "Entrega concluída · POD assinado",
+        "falha": "Falha na entrega",
+        "reagendada": "Janela reagendada",
+        "avaria": "Avaria registrada",
+        "excursao_termica": "Excursão térmica registrada",
+        "observacao": ev.get("detalhe", {}).get("nota") or "Observação registrada",
+    }
+    return mapa.get(ev.get("tipo"), ev.get("tipo", "Evento"))
+
+
+@app.get("/d/{token}")
+async def dossie_publico(token: str):
+    """Dossiê ANVISA-ready público. Formato de laudo para o embarcador."""
+    async with pool.acquire() as c:
+        ent_id = await resolver_token(c, token, "d")
+        ent = await c.fetchrow(
+            """select e.*, p.faixa, p.temp_min, p.temp_max, p.ref_externa,
+                      cli.razao_social as cliente
+               from entregas e
+               join pedidos p on p.id = e.pedido_id
+               join clientes cli on cli.id = p.cliente_id
+               where e.id = $1""", ent_id)
+        if not ent:
+            raise HTTPException(404, "entrega não encontrada")
+        eventos = await c.fetch(
+            "select * from eventos where entrega_id=$1 order by ocorrido_em, id", ent_id,
+        )
+        leituras = await c.fetch(
+            "select lido_em, temp_c from leituras_temperatura where entrega_id=$1 order by lido_em",
+            ent_id,
+        )
+        pod = await c.fetchrow(
+            "select recebedor_nome from pods where entrega_id=$1 order by registrado_em desc limit 1",
+            ent_id,
+        )
+        last = await c.fetchrow(
+            """select hash_atual from eventos where entrega_id=$1
+               order by ocorrido_em desc, id desc limit 1""", ent_id,
+        )
+
+    lt = [{"lido_em": r["lido_em"], "temp_c": float(r["temp_c"])} for r in leituras]
+    exc = compute_excursao(lt, ent["temp_min"], ent["temp_max"])
+    conforme = not exc["excursao"]
+
+    hash_curto = "—"
+    if last and last["hash_atual"]:
+        h = last["hash_atual"]
+        hash_curto = f"{h[:4]}…{h[-4:]}"
+
+    return {
+        "id_curto": (ent["ref_externa"] or str(ent["id"])[:8]).upper(),
+        "emitido_em": datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y · %H:%M BRT"),
+        "hash": hash_curto,
+        "titulo": ent["ref_externa"] or (ent["cliente"] or "Entrega"),
+        "veredito": ("entrega concluída em conformidade"
+                     if conforme else "entrega concluída em conformidade parcial"),
+        "resumo": ("Custódia térmica registrada de ponta a ponta."
+                   + ("" if conforme
+                      else f" Excursão de {exc['min_fora']} min documentada, pico {exc['pico']} °C.")),
+        "campos": [
+            {"k": "Embarcador", "v": ent["cliente"] or "—", "plain": True},
+            {"k": "Transportador", "v": "3PH Medicamentos", "plain": True},  # TODO
+            {"k": "Faixa contratada",
+             "v": (f"{ent['temp_min']} – {ent['temp_max']} °C"
+                   if ent["temp_min"] is not None else "—")},
+            {"k": "Recebedor",
+             "v": (pod["recebedor_nome"] if pod else "—"), "plain": True},
+            {"k": "Coleta", "v": _fmt_data(ent["coletada_em"])},
+            {"k": "Entrega", "v": _fmt_data(ent["entregue_em"]),
+             "ok": ent["entregue_em"] is not None},
+            {"k": "Duração", "v": _dur(ent["coletada_em"], ent["entregue_em"])},
+            {"k": "Sensor · nº", "v": ent["logger_id"] or "—"},
+        ],
+        "excursao": {"pico": f"{exc['pico']} °C", "min_fora": exc["min_fora"]},
+        "eventos": [
+            {"t": _hhmm(ev["ocorrido_em"]),
+             "txt": _evento_txt(dict(ev)),
+             "tone": _evento_tone(dict(ev))}
+            for ev in eventos
+        ],
+    }
