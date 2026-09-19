@@ -287,6 +287,14 @@ Render Cron (configurado no `render.yaml`):
 - **`python jobs.py expirar-tokens`** — diário 03:00 UTC. Deleta
   `tokens_publicos` já expirados há mais de `TOKENS_RETENCAO_DIAS`
   dias (default 7). Housekeeping.
+- **`python jobs.py mascarar-lgpd`** — mensal, dia 1 às 04:00 UTC.
+  Para `destinatarios` com `criado_em` > `LGPD_RETENCAO_MESES` meses
+  (default 18), zera telefone, documento, endereço, CEP, lat/lng e
+  troca o nome por `[apagado]`. Preserva o registro (mantém FKs de
+  pedidos/eventos/dossiê antigos). Idempotente — não re-mascara.
+  Base legal: LGPD Art. 15 (fim do tratamento). Ajuste a retenção
+  conforme o cliente (fiscal exige 5 anos; ANVISA RDC 430/653 exige
+  dados por ciclo do lote).
 
 Cada job roda em serviço Render dedicado (plan free — 750h/mês por
 serviço, folgado). Executam local com:

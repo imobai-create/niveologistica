@@ -110,11 +110,51 @@ async def expirar_tokens(conn: asyncpg.Connection) -> int:
 
 
 # --------------------------------------------------------------------
+# Mascaramento LGPD — para destinatários criados há mais de
+# LGPD_RETENCAO_MESES (default 18), apaga dados pessoais mantendo só
+# o nome como "[apagado]". Preserva o registro (não é DELETE) pra não
+# quebrar as FKs de pedidos/eventos/dossiê antigos.
+# Idempotente: usa `documento is not null` como marcador (após
+# mascarar, ele fica NULL).
+# Base legal: LGPD Art. 15 (fim do tratamento pela expiração do
+# vínculo contratual). Retenção pode ser regulada por normativos
+# fiscais (5 anos) e ANVISA (RDC 430/653 exige dados por ciclo do
+# lote) — ajuste LGPD_RETENCAO_MESES conforme o cliente.
+# --------------------------------------------------------------------
+LGPD_RETENCAO_MESES = int(os.environ.get("LGPD_RETENCAO_MESES", "18"))
+
+
+async def mascarar_lgpd(conn: asyncpg.Connection) -> int:
+    """Retorna o número de linhas mascaradas nesta execução."""
+    n = await conn.fetchval(
+        """with upd as (
+             update destinatarios
+                set nome          = '[apagado]',
+                    telefone      = null,
+                    documento     = null,
+                    endereco_raw  = null,
+                    endereco_norm = null,
+                    cep           = null,
+                    lat           = null,
+                    lng           = null,
+                    geocode_score = null
+              where criado_em < now() - make_interval(months => $1)
+                and documento is not null
+             returning 1
+           )
+           select count(*) from upd""",
+        LGPD_RETENCAO_MESES,
+    )
+    return int(n or 0)
+
+
+# --------------------------------------------------------------------
 # Runner
 # --------------------------------------------------------------------
 JOBS = {
     "detectar-sensor-mudo": detectar_sensor_mudo,
     "expirar-tokens": expirar_tokens,
+    "mascarar-lgpd": mascarar_lgpd,
 }
 
 

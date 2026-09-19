@@ -80,3 +80,20 @@ services:
         sync: false
       - key: TOKENS_RETENCAO_DIAS
         value: "7"
+
+  # ---- Cron 3: LGPD — mascarar destinatarios > N meses (dia 1, 04:00 UTC) ----
+  - type: cron
+    name: chamacarga-cron-lgpd
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 4 1 * *"
+    startCommand: python jobs.py mascarar-lgpd
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: DATABASE_URL
+        sync: false
+      - key: LGPD_RETENCAO_MESES
+        value: "18"
