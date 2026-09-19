@@ -22,6 +22,14 @@ services:
         sync: false           # ex.: https://chamacarga.vercel.app  (não use *)
       - key: SERVICE_TOKEN
         sync: false           # opcional: token de bypass para simulador/cron
+      - key: SUPABASE_URL
+        sync: false           # ex.: https://<projeto>.supabase.co (usado pelo upload de POD)
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false           # Supabase → Settings → API → service_role (upload no Storage)
+      - key: STORAGE_BUCKET
+        value: pods
+      - key: UPLOAD_MAX_MB
+        value: "8"
 
   # ---- Cron 1: sensor mudo (a cada 5 min) ----
   - type: cron

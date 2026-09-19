@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, MapPin, CheckCircle2, ChevronLeft, Truck, AlertTriangle, Pen, RotateCcw } from "lucide-react";
-import { listarAbertas, registrarPod, adicionarEvento } from "./api";
+import { listarAbertas, registrarPod, adicionarEvento, uploadPod } from "./api";
 
 const C = {
   bg: "#0E2A26", green: "#1E5F4F", mint: "#2FBF93", paper: "#F4F8F6",
@@ -112,11 +112,17 @@ function PodScreen({ entrega, onBack }) {
     if (!coord) { setErro("Capture o GPS."); return; }
     setBusy(true);
     try {
+      // Sobe pro Storage primeiro. Se backend não tem Storage configurado,
+      // uploadPod retorna a mesma data URL e { fallback:true } — não quebra.
+      const [f, a] = await Promise.all([
+        uploadPod(entrega.id, "foto", foto),
+        uploadPod(entrega.id, "assinatura", assinatura),
+      ]);
       await registrarPod(entrega.id, {
         recebedor_nome: recebedor,
         recebedor_doc: doc || null,
-        foto_url: foto,
-        assinatura_url: assinatura,
+        foto_url: f.url,
+        assinatura_url: a.url,
         lat: coord.lat,
         lng: coord.lng,
       });

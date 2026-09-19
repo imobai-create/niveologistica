@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 import asyncpg, httpx, jwt
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -33,6 +33,10 @@ SUPABASE_JWT_SECRET  = os.environ["SUPABASE_JWT_SECRET"]
 ANTHROPIC_API_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL      = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 SERVICE_TOKEN        = os.environ.get("SERVICE_TOKEN", "")
+SUPABASE_URL         = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+STORAGE_BUCKET       = os.environ.get("STORAGE_BUCKET", "pods")
+UPLOAD_MAX_MB        = int(os.environ.get("UPLOAD_MAX_MB", "8"))
 CO2_KG_POR_KM        = 0.25  # emissão evitada vs. van diesel
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "").strip()
@@ -391,6 +395,52 @@ async def registrar_pod(entrega_id: str, pod: PodIn, user: dict = Depends(curren
             """insert into eventos (entrega_id, tipo, autor, lat, lng)
                values ($1,'entregue','motorista',$2,$3)""", entrega_id, pod.lat, pod.lng)
     return {"pod_id": str(pod_id)}
+
+
+@app.post("/entregas/{entrega_id}/uploads", status_code=201)
+async def upload_pod_asset(
+    entrega_id: str,
+    tipo: str = Form(...),
+    file: UploadFile = File(...),
+    user: dict = Depends(current_user),
+):
+    """Sobe foto ou assinatura pro Supabase Storage e retorna URL pública.
+    Chamado antes de /pod pelo PWA motorista, pra não inflar o Postgres com base64.
+    501 se SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY não configurados — o frontend
+    cai no fluxo legacy (data URL direto no /pod)."""
+    if tipo not in ("foto", "assinatura"):
+        raise HTTPException(400, "tipo deve ser 'foto' ou 'assinatura'")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise HTTPException(501, "Storage não configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)")
+    async with pool.acquire() as c:
+        await ensure_owns_entrega(c, user, entrega_id)
+    contents = await file.read()
+    limite = UPLOAD_MAX_MB * 1024 * 1024
+    if len(contents) > limite:
+        raise HTTPException(413, f"arquivo maior que {UPLOAD_MAX_MB} MB")
+    # extensão segura a partir do content-type ou nome
+    ext_default = "jpg" if tipo == "foto" else "png"
+    ext = ext_default
+    if file.filename and "." in file.filename:
+        cand = file.filename.rsplit(".", 1)[-1].lower()
+        if 1 <= len(cand) <= 5 and cand.isalnum():
+            ext = cand
+    ts = int(datetime.now(timezone.utc).timestamp())
+    path = f"{entrega_id}/{tipo}-{ts}.{ext}"
+    ctype = file.content_type or ("image/jpeg" if tipo == "foto" else "image/png")
+    async with httpx.AsyncClient(timeout=30) as cli:
+        r = await cli.post(
+            f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{path}",
+            content=contents,
+            headers={
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+                "Content-Type": ctype,
+                "x-upsert": "true",
+            },
+        )
+        if r.status_code >= 400:
+            raise HTTPException(502, f"Storage {r.status_code}: {r.text[:200]}")
+    return {"url": f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{path}"}
 
 
 @app.get("/entregas/{entrega_id}/dossie")

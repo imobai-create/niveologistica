@@ -116,6 +116,31 @@ export async function adicionarEvento(entregaId, evento) {
   });
 }
 
+/**
+ * Sobe foto ou assinatura pro Supabase Storage via backend.
+ * Recebe uma data URL (jeito que o PWA motorista tem hoje), converte
+ * pra blob, sobe multipart. Se o backend responder 501 (Storage não
+ * configurado), retorna { url: dataUrl, fallback: true } — o Motorista
+ * então usa a data URL no /pod, mantendo o fluxo antigo funcionando.
+ */
+export async function uploadPod(entregaId, tipo, dataUrl) {
+  const token = await getToken();
+  const blob = await (await fetch(dataUrl)).blob();
+  const nome = `${tipo}.${tipo === "foto" ? "jpg" : "png"}`;
+  const form = new FormData();
+  form.append("tipo", tipo);
+  form.append("file", blob, nome);
+  const r = await fetch(`${BASE}/entregas/${entregaId}/uploads`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (r.status === 501) return { url: dataUrl, fallback: true };
+  if (!r.ok) throw new Error(`upload ${tipo}: ${r.status} ${r.statusText}`);
+  const data = await r.json();
+  return { url: data.url, fallback: false };
+}
+
 // ============================================================
 // ROTAS PÚBLICAS (sem JWT — usam token opaco na URL)
 // Backend correspondente: Sprint 3.
