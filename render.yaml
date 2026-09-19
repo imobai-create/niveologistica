@@ -22,3 +22,37 @@ services:
         sync: false           # ex.: https://chamacarga.vercel.app  (não use *)
       - key: SERVICE_TOKEN
         sync: false           # opcional: token de bypass para simulador/cron
+
+  # ---- Cron 1: sensor mudo (a cada 5 min) ----
+  - type: cron
+    name: chamacarga-cron-sensor-mudo
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    schedule: "*/5 * * * *"
+    startCommand: python jobs.py detectar-sensor-mudo
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: DATABASE_URL
+        sync: false
+      - key: SENSOR_MUDO_LIMITE_MIN
+        value: "10"
+
+  # ---- Cron 2: expiração de tokens públicos (uma vez ao dia, 03:00 UTC) ----
+  - type: cron
+    name: chamacarga-cron-expirar-tokens
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 3 * * *"
+    startCommand: python jobs.py expirar-tokens
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: DATABASE_URL
+        sync: false
+      - key: TOKENS_RETENCAO_DIAS
+        value: "7"

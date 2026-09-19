@@ -190,7 +190,28 @@ banco e endpoints reais.
 - `GET /d/{token}` — dossiê público formato laudo (público). Traz o
   hash do último evento como prova de integridade.
 
-## Próximos passos (Sprint 4+)
+## Sprint 4 pt.1 — cron jobs
+
+Scripts autocontidos em `backend/jobs.py`, sem HTTP, chamados pelo
+Render Cron (configurado no `render.yaml`):
+
+- **`python jobs.py detectar-sensor-mudo`** — a cada 5 min. Para cada
+  entrega `em_rota` com faixa térmica setada, se a última leitura foi
+  há mais de `SENSOR_MUDO_LIMITE_MIN` minutos (default 10), cria
+  alerta severidade `alta` + evento `observacao` autor `sistema`
+  (entra no hash-chain automaticamente). Idempotente: não duplica se
+  alerta `sensor_mudo` já estiver aberto.
+- **`python jobs.py expirar-tokens`** — diário 03:00 UTC. Deleta
+  `tokens_publicos` já expirados há mais de `TOKENS_RETENCAO_DIAS`
+  dias (default 7). Housekeeping.
+
+Cada job roda em serviço Render dedicado (plan free — 750h/mês por
+serviço, folgado). Executam local com:
+```
+DATABASE_URL=postgres://... python backend/jobs.py detectar-sensor-mudo
+```
+
+## Próximos passos (Sprint 4 pt.2+)
 
 - [ ] WhatsApp Business Cloud API — o 3PL cria a entrega, backend gera
       token `r`, envia link ao destinatário. Cadastro Meta Business é o
@@ -199,7 +220,6 @@ banco e endpoints reais.
 - [ ] Upload POD (foto + assinatura) pro Supabase Storage.
 - [ ] UI de login no frontend (Supabase Auth SDK) — remove o "cole
       token no localStorage".
-- [ ] Cron de expiração de reservas + detecção de sensor mudo.
 - [ ] Retenção / mascaramento LGPD dos campos pessoais em
       `destinatarios` (job mensal + máscara em `endereco_raw`/`documento`).
 - [ ] Metadado `sensor_certificado_rbc` + validade em
