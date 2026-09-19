@@ -1,11 +1,20 @@
 // Cliente da API Chamacarga. Mapeia o shape do backend para o shape que o painel consome.
 // Não há chave de API no front: o /agente/responder vive no backend.
 
+import { supabase } from "./supabase";
+
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Token JWT (Supabase). Sprint 1: guardado em localStorage manualmente ou
-// injetado pelo callback do Supabase Auth. Sprint 2 fará a UI de login.
-function getToken() {
+// Prioriza sessão do Supabase (Sprint 4); cai pro token legacy em
+// localStorage (Sprint 1) se supabase não está configurado — mantém
+// devs sem env do Supabase funcionando.
+async function getToken() {
+  if (supabase) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) return data.session.access_token;
+    } catch {}
+  }
   try { return localStorage.getItem("chamacarga_token") || ""; } catch { return ""; }
 }
 export function setToken(t) {
@@ -13,12 +22,12 @@ export function setToken(t) {
 }
 
 async function req(path, opts = {}) {
-  const token = getToken();
+  const token = await getToken();
   const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const r = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (r.status === 401 || r.status === 403) {
-    throw new Error(`${r.status} sessão inválida ou sem cliente_id — cole um token em localStorage.chamacarga_token`);
+    throw new Error(`${r.status} sessão inválida ou sem cliente_id — faça login`);
   }
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.status === 204 ? null : r.json();

@@ -190,6 +190,31 @@ banco e endpoints reais.
 - `GET /d/{token}` — dossiê público formato laudo (público). Traz o
   hash do último evento como prova de integridade.
 
+## Sprint 4 pt.2 — UI de login (Supabase Auth)
+
+Remove o "cole token no localStorage" do Sprint 1. O frontend agora tem
+`/login` com email+senha ou magic link, e as rotas privadas (`/`,
+`/motorista`) redirecionam pra lá quando não há sessão. As públicas
+(`/r/:token`, `/d/:token`) seguem abertas.
+
+**Envs novas no frontend** (`frontend/.env.example`, ou na Vercel):
+
+- `VITE_SUPABASE_URL` — Supabase → Settings → API → Project URL.
+- `VITE_SUPABASE_ANON_KEY` — mesma tela, campo "anon / public".
+
+Sem essas duas, a UI degrada com aviso "Login indisponível" e o app
+**continua funcionando** via fluxo legacy (JWT em
+`localStorage.chamacarga_token`) — bom pra devs sem conta Supabase.
+
+Fluxo pra criar um usuário do 3PL:
+```sql
+-- No Supabase Studio, após criar o usuário via Auth, vincule ao cliente:
+update auth.users
+set raw_app_meta_data = raw_app_meta_data
+  || jsonb_build_object('cliente_id', '<uuid do cliente>')
+where email = 'ana@3phmed.com.br';
+```
+
 ## Sprint 4 pt.1 — cron jobs
 
 Scripts autocontidos em `backend/jobs.py`, sem HTTP, chamados pelo
