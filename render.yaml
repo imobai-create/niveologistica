@@ -30,6 +30,22 @@ services:
         value: pods
       - key: UPLOAD_MAX_MB
         value: "8"
+      - key: PUBLIC_BASE_URL
+        sync: false           # URL da Vercel; sem isso, notificações não são enviadas
+      - key: WHATSAPP_TOKEN
+        sync: false           # opcional: Meta WhatsApp Cloud API
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_TEMPLATE_NAME
+        sync: false           # ex.: reserva_janela_pt_br (template pré-aprovado)
+      - key: WHATSAPP_TEMPLATE_LANG
+        value: pt_BR
+      - key: SMS_PROVIDER
+        sync: false           # 'zenvia' ou vazio
+      - key: SMS_API_KEY
+        sync: false
+      - key: SMS_FROM
+        value: Chamacarga
 
   # ---- Cron 1: sensor mudo (a cada 5 min) ----
   - type: cron
