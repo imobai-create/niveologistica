@@ -190,6 +190,38 @@ banco e endpoints reais.
 - `GET /d/{token}` — dossiê público formato laudo (público). Traz o
   hash do último evento como prova de integridade.
 
+## Sprint 4 pt.3 — Upload POD pro Supabase Storage
+
+O PWA motorista já tirava foto + coletava assinatura, mas mandava as
+duas como data URL (base64) direto no `/pod`. Isso inflava o Postgres
+e ficava lento no dossiê. Agora:
+
+1. Motorista aperta "Enviar POD"
+2. Frontend chama `POST /entregas/{id}/uploads` uma vez pra foto,
+   outra pra assinatura (paralelo)
+3. Backend sobe cada arquivo pro Supabase Storage (bucket `pods`),
+   retorna URL pública
+4. Frontend chama `POST /entregas/{id}/pod` só com as URLs
+
+**Setup no Supabase:**
+
+1. Storage → New bucket → nome `pods`, **público**.
+2. (RLS do bucket já bloqueia escrita anônima; escrita vem do backend
+   com service_role.)
+3. Copiar Settings → API → `service_role` key e `Project URL`.
+
+**Envs novas no backend** (Render):
+
+- `SUPABASE_URL` — mesmo Project URL do frontend.
+- `SUPABASE_SERVICE_ROLE_KEY` — chave privada, **nunca** exposta no
+  front.
+- `STORAGE_BUCKET` (opcional, default `pods`).
+- `UPLOAD_MAX_MB` (opcional, default `8`).
+
+**Degradação graciosa:** sem essas envs, o endpoint retorna 501 e o
+frontend cai automaticamente no fluxo antigo (data URL no `/pod`),
+mantendo o PWA funcional. Nada quebra.
+
 ## Sprint 4 pt.2 — UI de login (Supabase Auth)
 
 Remove o "cole token no localStorage" do Sprint 1. O frontend agora tem
