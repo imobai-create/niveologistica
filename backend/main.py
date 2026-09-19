@@ -37,6 +37,7 @@ SUPABASE_URL         = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 STORAGE_BUCKET       = os.environ.get("STORAGE_BUCKET", "pods")
 UPLOAD_MAX_MB        = int(os.environ.get("UPLOAD_MAX_MB", "8"))
+PUBLIC_BASE_URL      = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 CO2_KG_POR_KM        = 0.25  # emissão evitada vs. van diesel
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "").strip()
@@ -630,14 +631,18 @@ async def gerar_token_publico(
     entrega_id: str,
     tipo: str,
     dias: int = 7,
+    enviar: bool = False,
     user: dict = Depends(current_user),
 ):
-    """Gera link público /r/:token (reserva) ou /d/:token (dossiê)."""
+    """Gera link público /r/:token (reserva) ou /d/:token (dossiê).
+    Se enviar=True, dispara notificação (WhatsApp → SMS fallback) pro
+    telefone do destinatário da entrega. Se PUBLIC_BASE_URL não estiver
+    setado, retorna a URL relativa e não envia — evita link quebrado."""
     if tipo not in ("r", "d"):
         raise HTTPException(400, "tipo deve ser 'r' ou 'd'")
+    telefone = None
     async with pool.acquire() as c:
         await ensure_owns_entrega(c, user, entrega_id)
-        # tenta 3 vezes se colidir (colisão em 8 chars é ~1 em 10^7)
         for _ in range(3):
             token_str = _gerar_token_curto()
             try:
@@ -651,7 +656,44 @@ async def gerar_token_publico(
                 continue
         else:
             raise HTTPException(500, "não foi possível gerar token único")
-    return {"token": token_str, "tipo": tipo, "url": f"/{tipo}/{token_str}"}
+        if enviar:
+            telefone = await c.fetchval(
+                """select d.telefone
+                   from entregas e
+                   join pedidos p on p.id = e.pedido_id
+                   join destinatarios d on d.id = p.destinatario_id
+                   where e.id = $1""", entrega_id)
+
+    url_rel = f"/{tipo}/{token_str}"
+    url_abs = f"{PUBLIC_BASE_URL}{url_rel}" if PUBLIC_BASE_URL else url_rel
+
+    notificacao = None
+    if enviar:
+        if not PUBLIC_BASE_URL:
+            notificacao = {"ok": False, "canal": "nenhum",
+                           "erro": "PUBLIC_BASE_URL não configurado"}
+        elif not telefone:
+            notificacao = {"ok": False, "canal": "nenhum",
+                           "erro": "destinatário sem telefone"}
+        else:
+            from messaging import send_link
+            notificacao = await send_link(telefone, url_abs, contexto="Sua entrega")
+            # evento auditável do envio (entra no hash-chain)
+            async with pool.acquire() as c:
+                await c.execute(
+                    """insert into eventos (entrega_id, tipo, autor, detalhe)
+                       values ($1, 'observacao', 'sistema', $2)""",
+                    entrega_id,
+                    json.dumps({"acao": "notificar_destinatario",
+                                "canal": notificacao.get("canal"),
+                                "ok": bool(notificacao.get("ok")),
+                                "tipo_link": tipo}),
+                )
+
+    resp = {"token": token_str, "tipo": tipo, "url": url_abs}
+    if notificacao is not None:
+        resp["notificacao"] = notificacao
+    return resp
 
 
 @app.get("/r/{token}")

@@ -190,6 +190,32 @@ banco e endpoints reais.
 - `GET /d/{token}` — dossiê público formato laudo (público). Traz o
   hash do último evento como prova de integridade.
 
+## Sprint 4 pt.4 — WhatsApp Cloud API + SMS fallback
+
+Backend agora sabe mandar o link `/r/:token` pro destinatário assim que
+o 3PL gera o token. `POST /entregas/{id}/tokens?tipo=r&enviar=true`
+tenta WhatsApp Business Cloud API primeiro (Meta oficial, sem BSP), cai
+pra Zenvia SMS se WhatsApp falhar/não configurado, e degrada
+graciosamente pra `{"canal": "nenhum"}` se nem um está pronto.
+
+Cada envio grava um evento `observacao` na entrega (entra no
+hash-chain automaticamente) com `{acao, canal, ok}`.
+
+**Setup Meta WhatsApp Cloud API** (2–4 semanas de aprovação):
+1. Meta Business Manager → adiciona WhatsApp Business Account.
+2. Cria template de mensagem `reserva_janela_pt_br` com **1 variável no
+   corpo** (o link). Aguarda aprovação da Meta.
+3. Copia `WHATSAPP_TOKEN` (Permanent Access Token) e `WHATSAPP_PHONE_ID`
+   e cola no Render.
+
+**Setup Zenvia SMS** (fallback, rápido):
+1. Conta na Zenvia → API Keys → gerar chave.
+2. Cola `SMS_API_KEY=<chave>`, `SMS_PROVIDER=zenvia` no Render.
+
+Sem nenhuma dessas envs, `enviar=true` simplesmente responde `canal:
+nenhum` — não quebra nada; o 3PL pode copiar a URL do response e mandar
+manualmente até a Meta liberar.
+
 ## Sprint 4 pt.3 — Upload POD pro Supabase Storage
 
 O PWA motorista já tirava foto + coletava assinatura, mas mandava as
