@@ -190,6 +190,8 @@ class EntregaIn(BaseModel):
     veiculo_id: Optional[str] = None
     logger_id: Optional[str] = None
     distancia_km: Optional[float] = None
+    sensor_certificado_rbc: Optional[str] = None
+    sensor_certificado_validade: Optional[datetime] = None
 
 
 class EventoIn(BaseModel):
@@ -265,9 +267,12 @@ async def criar_entrega(pedido_id: str, e: EntregaIn, user: dict = Depends(curre
     async with pool.acquire() as c, c.transaction():
         await ensure_owns_pedido(c, user, pedido_id)
         ent_id = await c.fetchval(
-            """insert into entregas (pedido_id, motorista_id, veiculo_id, logger_id, distancia_km)
-               values ($1,$2,$3,$4,$5) returning id""",
+            """insert into entregas (pedido_id, motorista_id, veiculo_id, logger_id,
+                                      distancia_km, sensor_certificado_rbc,
+                                      sensor_certificado_validade)
+               values ($1,$2,$3,$4,$5,$6,$7) returning id""",
             pedido_id, e.motorista_id, e.veiculo_id, e.logger_id, e.distancia_km,
+            e.sensor_certificado_rbc, e.sensor_certificado_validade,
         )
         await c.execute(
             "insert into eventos (entrega_id, tipo, autor) values ($1,'criada','sistema')", ent_id,
@@ -804,6 +809,23 @@ def _fmt_data(dt) -> str:
     return dt.astimezone().strftime("%d/%m · %H:%M") if dt else "—"
 
 
+def _fmt_sensor(logger_id, cert, validade) -> str:
+    """Formata 'CX-041 · RBC 12345 até 03/27' pro dossiê.
+    Cai gracioso conforme campos ausentes."""
+    partes = []
+    if logger_id:
+        partes.append(str(logger_id))
+    if cert:
+        s = f"RBC {cert}"
+        if validade:
+            try:
+                s += " até " + validade.strftime("%m/%y")
+            except Exception:
+                pass
+        partes.append(s)
+    return " · ".join(partes) if partes else "—"
+
+
 def _dur(a, b) -> str:
     if not a or not b: return "—"
     delta = b - a
@@ -896,7 +918,10 @@ async def dossie_publico(token: str):
             {"k": "Entrega", "v": _fmt_data(ent["entregue_em"]),
              "ok": ent["entregue_em"] is not None},
             {"k": "Duração", "v": _dur(ent["coletada_em"], ent["entregue_em"])},
-            {"k": "Sensor · nº", "v": ent["logger_id"] or "—"},
+            {"k": "Sensor · nº",
+             "v": _fmt_sensor(ent.get("logger_id"),
+                              ent.get("sensor_certificado_rbc"),
+                              ent.get("sensor_certificado_validade"))},
         ],
         "excursao": {"pico": f"{exc['pico']} °C", "min_fora": exc["min_fora"]},
         "eventos": [

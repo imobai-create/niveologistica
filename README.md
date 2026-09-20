@@ -313,5 +313,5 @@ DATABASE_URL=postgres://... python backend/jobs.py detectar-sensor-mudo
       token no localStorage".
 - [ ] Retenção / mascaramento LGPD dos campos pessoais em
       `destinatarios` (job mensal + máscara em `endereco_raw`/`documento`).
-- [ ] Metadado `sensor_certificado_rbc` + validade em
-      `leituras_temperatura` (ISO 17025).
+- [x] Metadado `sensor_certificado_rbc` + validade em `entregas`
+      (ISO 17025) — Sprint 5 pt.2, aplicar `db/06_sensor_rbc.sql`.
